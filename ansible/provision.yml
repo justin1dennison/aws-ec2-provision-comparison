@@ -1,0 +1,53 @@
+
+---
+
+- name: "AWS Provision and Configuration"
+  hosts: localhost
+  gather_facts: False
+  connection: local
+  vars:
+    keyname: work-jd-keypair
+    instance_type: t2.micro
+    image: ami-1853ac65
+    instance_tags:
+      Name: "Demo with Ansible" 
+    region: "us-east-1"
+    wait: true
+  tasks:
+    - name: "Create the ec2 instance"
+      ec2:
+        key_name: "{{ keyname }}"
+        instance_type: "{{ instance_type }}"
+        image: "{{ image }}"
+        instance_tags: "{{ instance_tags }}"
+        region: "{{ region }}"
+        wait: "{{ wait }}"
+      register: ec2
+    - name: "Add all of the public ips to the hosts groups"
+      add_host: 
+        hostname: "{{ item.public_ip }}"
+        groups: ec2hosts
+      loop: "{{ ec2.instances }}"
+- hosts: ec2hosts 
+  name: "Configure the webserver"
+  user: ec2-user
+  gather_facts: true
+  tasks:
+    - name: "Install nginx"
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+        upgrade: yes
+    - name: 'start nginx'
+      service:
+        name: nginx
+        state: started
+
+
+
+  
+
+
+
+
