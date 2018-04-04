@@ -1,0 +1,8 @@
+- used deb instead of yum
+- instance tags and count_tag
+- not setting up a security group with ssh
+- not waiting for ssh to become available
+- not elevating privileges
+- not providing the associated private keys
+- ansible creates duplicate ec2 instances upon subsequent runs unless the instance tags and count tag are "just right"
+- not setting up the egress_rules for sg

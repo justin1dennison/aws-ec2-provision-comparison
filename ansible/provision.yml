@@ -9,20 +9,54 @@
     keyname: work-jd-keypair
     instance_type: t2.micro
     image: ami-1853ac65
-    instance_tags:
+    ec2tags:
       Name: "Demo with Ansible" 
     region: "us-east-1"
     wait: true
+    exact_count: 1
   tasks:
+    - name: "Create EC2 Security Groups"
+      ec2_group:
+        name: "demo-with-ansible-sg"
+        description: "A Security Group that allows SSH access"
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: "0.0.0.0/0"
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: "0.0.0.0/0"
+        rules_egress:
+          - proto: all
+            cidr_ip: "0.0.0.0/0"
+        state: present
+      register: ansiblesg
     - name: "Create the ec2 instance"
       ec2:
         key_name: "{{ keyname }}"
         instance_type: "{{ instance_type }}"
         image: "{{ image }}"
-        instance_tags: "{{ instance_tags }}"
+        instance_tags: "{{ ec2tags }}"
         region: "{{ region }}"
         wait: "{{ wait }}"
+        exact_count: "{{ exact_count }}"
+        count_tag: 
+          Name: "{{ ec2tags.Name }}"
+        group_id: "{{ ansiblesg.group_id }}"
       register: ec2
+    - name: Wait 300 seconds for port 22 to become open and contain "OpenSSH"
+      wait_for:
+        port: 22
+        search_regex: OpenSSH
+        connect_timeout: 300
+        delay: 10
+        host: "{{ item.public_ip }}"
+        state: started
+      connection: local
+      with_items: "{{ ec2.instances }}"
     - name: "Add all of the public ips to the hosts groups"
       add_host: 
         hostname: "{{ item.public_ip }}"
@@ -30,15 +64,15 @@
       loop: "{{ ec2.instances }}"
 - hosts: ec2hosts 
   name: "Configure the webserver"
-  user: ec2-user
-  gather_facts: true
+  remote_user: ec2-user
+  gather_facts: true 
+  become: true 
   tasks:
     - name: "Install nginx"
-      apt:
+      yum:
         name: nginx
         state: latest
         update_cache: yes
-        upgrade: yes
     - name: 'start nginx'
       service:
         name: nginx
